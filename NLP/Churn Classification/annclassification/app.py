@@ -1,70 +1,68 @@
-import streamlit as st
-import numpy as np
-import tensorflow as tf
-from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
 import pandas as pd
-import pickle
+import streamlit as st
+import tensorflow as tf
+from sklearn.preprocessing import StandardScaler,LabelEncoder
+import pickle 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+import datetime
+from tensorflow.keras.models import load_model
 
-# Load the trained model
-model = tf.keras.models.load_model('model.h5')
+model = load_model('model.h5')
 
-# Load the encoders and scaler
-with open('label_encoder_gender.pkl', 'rb') as file:
-    label_encoder_gender = pickle.load(file)
-
-with open('onehot_encoder_geo.pkl', 'rb') as file:
-    onehot_encoder_geo = pickle.load(file)
-
-with open('scaler.pkl', 'rb') as file:
-    scaler = pickle.load(file)
+with open('one_hot_encoder_geo.pkl','rb') as file : 
+    geo_encoder = pickle.load(file)
+with open('label_encoder_gender.pkl','rb') as file : 
+    gender_encoder = pickle.load(file)
+with open('scalar.pkl','rb') as file : 
+    scalar = pickle.load(file)
 
 
-## streamlit app
-st.title('Customer Churn PRediction')
+st.title('Employee Churn Predictor')
 
-# User input
-geography = st.selectbox('Geography', onehot_encoder_geo.categories_[0])
-gender = st.selectbox('Gender', label_encoder_gender.classes_)
-age = st.slider('Age', 18, 92)
-balance = st.number_input('Balance')
-credit_score = st.number_input('Credit Score')
-estimated_salary = st.number_input('Estimated Salary')
-tenure = st.slider('Tenure', 0, 10)
-num_of_products = st.slider('Number of Products', 1, 4)
-has_cr_card = st.selectbox('Has Credit Card', [0, 1])
-is_active_member = st.selectbox('Is Active Member', [0, 1])
+credit = st.number_input('Enter the Credit Score')
+geography = st.selectbox('Country: ', geo_encoder.categories_[0])
+gender = st.selectbox('Select your Gender',gender_encoder.classes_)
+age = st.slider('Select your Age',18,100)
+st.text('Age: {}'.format(age))
+estimatedSalary = st.number_input('Enter the estimated Salary')
+tenure = st.slider('Select Tenure at Company',0,10)
+st.text('Tenure: {}'.format(tenure))
+balance = st.number_input('Enter the Balance amount')
+numberOfProducts = st.slider('Select the number of products',1,10)
+st.text('Products: {}'.format(numberOfProducts))
+has_cr_card = st.selectbox('Has Credit Card',[0,1])
+is_active_member = st.selectbox('Are you an active member? ',[0,1])
 
-# Prepare the input data
-input_data = pd.DataFrame({
-    'CreditScore': [credit_score],
-    'Gender': [label_encoder_gender.transform([gender])[0]],
-    'Age': [age],
+
+created_dict = {
+    'CreditScore': [credit],
+    'Geography': [geography],
+    'Gender' : [gender_encoder.transform([gender])[0]],
+    'Age' : [age],
     'Tenure': [tenure],
     'Balance': [balance],
-    'NumOfProducts': [num_of_products],
-    'HasCrCard': [has_cr_card],
+    'NumOfProducts' :[numberOfProducts],
+    'HasCrCard':[has_cr_card],
     'IsActiveMember': [is_active_member],
-    'EstimatedSalary': [estimated_salary]
-})
+    'EstimatedSalary':[estimatedSalary]   
+}
 
-# One-hot encode 'Geography'
-geo_encoded = onehot_encoder_geo.transform([[geography]]).toarray()
-geo_encoded_df = pd.DataFrame(geo_encoded, columns=onehot_encoder_geo.get_feature_names_out(['Geography']))
+input_data = pd.DataFrame(created_dict)
 
-# Combine one-hot encoded columns with input data
-input_data = pd.concat([input_data.reset_index(drop=True), geo_encoded_df], axis=1)
+encoded_geography = geo_encoder.transform([[geography]]).toarray()
 
-# Scale the input data
-input_data_scaled = scaler.transform(input_data)
+geo_encoded_df = pd.DataFrame(encoded_geography, columns=geo_encoder.get_feature_names_out())
+
+input_data_df = pd.concat([input_data.reset_index(drop=True),geo_encoded_df],axis=1)
+input_data_df = input_data_df.drop('Geography', axis=1)
 
 
-# Predict churn
-prediction = model.predict(input_data_scaled)
-prediction_proba = prediction[0][0]
+scaled_data = scalar.transform(input_data_df)
 
-st.write(f'Churn Probability: {prediction_proba:.2f}')
+prediction = model.predict(scaled_data)
 
-if prediction_proba > 0.5:
-    st.write('The customer is likely to churn.')
+if prediction < 0.5:
+    st.success("The employee is most likely to not churn")
 else:
-    st.write('The customer is not likely to churn.')
+    st.error("The employee is likely to churn")
